@@ -1,0 +1,47 @@
+{% extends "base" %}
+{% block title %}Cerebro — audit{% endblock %}
+{% block content %}
+<div class="page-head">
+    <h1>Fleet audit</h1>
+    <p class="subtle">Every security finding across the fleet, most urgent first.</p>
+</div>
+
+{% if rows %}
+<div class="sev-summary">
+    {% if severity.critical %}<span class="count-pill sev-critical">{{ severity.critical }} critical</span>{% endif %}
+    {% if severity.important %}<span class="count-pill sev-important">{{ severity.important }} important</span>{% endif %}
+    {% if severity.moderate %}<span class="count-pill sev-moderate">{{ severity.moderate }} moderate</span>{% endif %}
+    {% if severity.low %}<span class="count-pill sev-low">{{ severity.low }} low</span>{% endif %}
+</div>
+<table class="grid">
+    <thead>
+        <tr>
+            <th>Severity</th>
+            <th>Host</th>
+            <th>Finding</th>
+            <th>Category</th>
+            <th>Detail</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in rows %}
+        <tr class="sevbar-{{ row.finding.severity }}">
+            <td><span class="chip sev-{{ row.finding.severity }}">{{ row.finding.severity }}</span></td>
+            <td><a href="/host/{{ row.host }}#security">{{ row.host }}</a></td>
+            <td>
+                {{ row.finding.title }}
+                <div class="subtle mono">{{ row.finding.id }}</div>
+            </td>
+            <td>{{ row.finding.category }}</td>
+            <td>
+                {{ row.finding.detail }}
+                {% if row.finding.recommendation %}<div class="fix"><strong>Fix</strong> {{ row.finding.recommendation }}</div>{% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="empty"><p class="clean-text">No findings across the fleet — every host is clean.</p></div>
+{% endif %}
+{% endblock %}
