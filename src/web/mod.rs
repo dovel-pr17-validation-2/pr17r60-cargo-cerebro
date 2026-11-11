@@ -387,6 +387,38 @@ fn environment() -> &'static Environment<'static> {
     })
 }
 
+/// Convert a serializable view model into a template value.
+///
+/// minijinja only converts serde types when its optional `serde` feature is
+/// enabled, so the view is serialized to JSON and rebuilt from that instead.
+fn to_template_value<T: Serialize + ?Sized>(value: &T) -> minijinja::Value {
+    let json = serde_json::to_value(value).expect("view models serialize to JSON");
+    json_to_template_value(json)
+}
+
+fn json_to_template_value(json: serde_json::Value) -> minijinja::Value {
+    use serde_json::Value as Json;
+    match json {
+        Json::Null => minijinja::Value::from(()),
+        Json::Bool(b) => minijinja::Value::from(b),
+        Json::Number(n) => match (n.as_i64(), n.as_u64(), n.as_f64()) {
+            (Some(i), _, _) => minijinja::Value::from(i),
+            (None, Some(u), _) => minijinja::Value::from(u),
+            (None, None, f) => minijinja::Value::from(f.unwrap_or(f64::NAN)),
+        },
+        Json::String(s) => minijinja::Value::from(s),
+        Json::Array(items) => items
+            .into_iter()
+            .map(json_to_template_value)
+            .collect::<Vec<_>>()
+            .into(),
+        Json::Object(map) => minijinja::Value::from_pairs(
+            map.into_iter()
+                .map(|(key, value)| (key, json_to_template_value(value))),
+        ),
+    }
+}
+
 fn render(name: &str, ctx: minijinja::Value) -> Html<String> {
     let tmpl = environment()
         .get_template(name)
@@ -404,8 +436,8 @@ async fn overview(State(state): State<AppState>) -> Html<String> {
     render(
         "overview",
         context! {
-            hosts => hosts,
-            summary => summary,
+            hosts => to_template_value(&hosts),
+            summary => to_template_value(&summary),
             read_only => state.read_only,
             active => "fleet",
         },
@@ -425,11 +457,11 @@ async fn host_detail(
     render(
         "host",
         context! {
-            host => host,
-            stats => HostStats::from_host(host),
-            findings => findings,
-            top_findings => top_findings,
-            firewall_view => host.firewall.as_ref().map(FirewallView::from_state),
+            host => to_template_value(host),
+            stats => to_template_value(&HostStats::from_host(host)),
+            findings => to_template_value(&findings),
+            top_findings => to_template_value(&top_findings),
+            firewall_view => to_template_value(&host.firewall.as_ref().map(FirewallView::from_state)),
             last_polled => host.last_polled.map(rel_time),
             read_only => state.read_only,
             active => "",
@@ -456,8 +488,8 @@ async fn audit(State(state): State<AppState>) -> Html<String> {
     render(
         "audit",
         context! {
-            rows => rows,
-            severity => severity,
+            rows => to_template_value(&rows),
+            severity => to_template_value(&severity),
             read_only => state.read_only,
             active => "audit",
         },
